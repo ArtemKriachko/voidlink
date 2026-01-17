@@ -1,0 +1,12 @@
+postgres_data/
+backend/venv/
+venv/
+.venv/
+__pycache__/
+tests/__pycache__/
+*.pyc
+.idea/
+.vscode/
+node_modules/
+.next/
+.env

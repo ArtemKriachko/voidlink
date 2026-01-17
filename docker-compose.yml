@@ -5,26 +5,34 @@ services:
     image: postgres:16-alpine
     container_name: shortener_db
     restart: always
-    ports:
-      - "5432:5432"
+    # Жорстко прописуємо змінні тут, щоб не було магії з .env
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=shortener_db
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
-    env_file:
-      - .env
+    networks:
+      voidlink_net:
+        aliases:
+          - db
 
   api:
-    volumes:
-      - .:/app
     build: ./backend
     container_name: fastapi_app
+    volumes:
+      - .:/app
     ports:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app:/app/backend
+      - DATABASE_URL=postgresql://admin:root@db:5432/shortener_db
     env_file:
       - .env
     depends_on:
       - db
+    networks:
+      - voidlink_net
 
   frontend:
     build: ./frontend
@@ -35,3 +43,9 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - api
+    networks:
+      - voidlink_net
+
+networks:
+  voidlink_net:
+    name: voidlink_network

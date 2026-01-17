@@ -13,17 +13,22 @@ from database import get_db, engine
 
 
 
-# models.Base.metadata.create_all(bind=engine)
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="URL Shortener Pro", redirect_slashes=False)
 
 
 from fastapi.middleware.cors import CORSMiddleware
 
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"], # Дозволяємо всі методи (OPTIONS, POST, GET і т.д.)
     allow_headers=["*"], # Дозволяємо всі заголовки
 )
@@ -112,4 +117,4 @@ def change_password(
     return {"message": "Password updated successfully"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
