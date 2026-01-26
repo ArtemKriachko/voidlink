@@ -1,0 +1,1 @@
+docker exec -it shortener_db psql -U admin -d shortener_db

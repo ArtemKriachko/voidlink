@@ -21,7 +21,7 @@ async def test_full_workflow(ac):
     assert link_response.status_code == 200
 
     link_data = link_response.json()
-    short_key = link_data["short_key"]  # Переконайся, що ключ називається саме так
+    short_key = link_data["short_key"]
     print(f"\n[SUCCESS] Створено посилання: {short_key}")
 
     # --- 4. ПЕРЕВІРКА РЕДИРЕКТУ ---

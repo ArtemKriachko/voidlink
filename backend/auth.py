@@ -1,18 +1,19 @@
-from passlib.context import CryptContext
+import os
 from datetime import datetime, timedelta, timezone
-from jose import jwt
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError
+
 from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+
 import crud
 from database import get_db
-import os
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

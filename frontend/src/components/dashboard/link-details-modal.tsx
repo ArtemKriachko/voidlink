@@ -58,11 +58,33 @@ export function LinkDetailsModal({ link, isOpen, onClose }: LinkDetailsProps) {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-center p-6 bg-white/[0.02] rounded-xl border border-dashed border-[#222222]">
-                                    <div className="text-center space-y-3">
-                                        <QrCode size={120} className="mx-auto text-white opacity-20" />
-                                        <p className="text-[10px] text-[#444444] uppercase tracking-widest font-bold">QR Code Coming Soon</p>
-                                    </div>
+                                <div className="flex flex-col items-center justify-center p-6 bg-white/[0.02] rounded-xl border border-dashed border-[#222222]">
+                                    {link.qr_code ? (
+                                        <div className="text-center space-y-4">
+                                            <div className="p-2 bg-white rounded-lg"> {/* Білий фон для кращого сканування */}
+                                                <img
+                                                    src={link.qr_code}
+                                                    alt="QR Code"
+                                                    className="w-32 h-32"
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <p className="text-[10px] text-[#777777] uppercase tracking-widest font-bold">QR Code Ready</p>
+                                                <a
+                                                    href={link.qr_code}
+                                                    download={`qr-${link.short_key}.png`}
+                                                    className="text-[10px] text-white/50 hover:text-white underline transition-colors"
+                                                >
+                                                    Download PNG
+                                                </a>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center space-y-3">
+                                            <QrCode size={120} className="mx-auto text-white opacity-20" />
+                                            <p className="text-[10px] text-[#444444] uppercase tracking-widest font-bold">QR Code Not Available</p>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>

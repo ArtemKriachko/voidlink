@@ -12,3 +12,8 @@ pytest-asyncio==0.23.5
 httpx==0.27.0
 python-dotenv
 pytest-asyncio
+qrcode
+Pillow==10.2.0
+fastapi-throttle
+ruff
+aiogram==3.17.0

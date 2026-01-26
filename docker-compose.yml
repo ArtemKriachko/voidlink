@@ -1,11 +1,9 @@
 version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
     container_name: shortener_db
     restart: always
-    # Жорстко прописуємо змінні тут, щоб не було магії з .env
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=root
@@ -46,6 +44,25 @@ services:
     networks:
       - voidlink_net
 
+  bot:
+    build:
+      context: ./backend
+      dockerfile: bot/Dockerfile
+    container_name: voidlink_bot
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://admin:root@db:5432/shortener_db
+      - PYTHONPATH=/app
+    working_dir: /app
+    command: python bot/bot.py
+    depends_on:
+      - db
+    networks:
+      - voidlink_net # ОБОВ'ЯЗКОВО, щоб бачити базу
+
 networks:
   voidlink_net:
     name: voidlink_network
+

@@ -1,9 +1,12 @@
-import string
 import random
+import string
+
 from sqlalchemy.orm import Session
+
+import auth
 import models
 import schemas
-import auth
+from qr_creater import generate_qr_base64
 
 
 def generate_short_key(length: int = 5):
@@ -11,12 +14,13 @@ def generate_short_key(length: int = 5):
     return "".join(random.choice(chars) for _ in range(length))
 
 
-def create_db_url(db: Session, url_address: str, user_id: int):  # додали user_id
+def create_db_url(db: Session, url_address: str, user_id: int):
     if not url_address.startswith("https://") and not url_address.startswith("https://"):
         url_address = "https://" + url_address
-
     random_key = generate_short_key()
-    db_url = models.URL(full_url=url_address, short_key=random_key, owner_id=user_id)  # записуємо власника
+    shortened_url = f"127.0.0.1/{random_key}"
+    qr_base64 = generate_qr_base64(shortened_url)
+    db_url = models.URL(full_url=url_address, short_key=random_key, owner_id=user_id, qr_code=qr_base64)
     db.add(db_url)
     db.commit()
     db.refresh(db_url)
@@ -33,6 +37,10 @@ def get_db_url_by_key(db: Session, url_key: str):
 
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
+
+def get_user_by_tg_id(db: Session, telegram_id: int):
+    return db.query(models.User).filter(models.User.telegram_id == telegram_id).first()
+
 
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_pwd = auth.get_password_hash(user.password)
@@ -54,3 +62,11 @@ def delete_db_url(db: Session, short_key: str, user_id: int):
         db.commit()
         return True
     return False
+
+def authenticate_user(db: Session, username: str, password: str):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        return False
+    if not auth.verify_password(password, user.hashed_password):
+        return False
+    return user
