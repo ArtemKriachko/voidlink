@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, HttpUrl, Field
 
 
 class UserCreate(BaseModel):
@@ -21,7 +21,7 @@ class URLCreate(BaseModel):
     target_url: str
 
 class CheckURL(URLCreate):
-    pass
+    target_url: HttpUrl = Field(..., description="Повинно бути валідне посилання")
 
 class URLInfo(BaseModel):
     id: int

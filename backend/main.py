@@ -34,7 +34,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 async def send_error_to_dev_telegram(error_report):
     tg_id = os.getenv("TG_ID")
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -51,31 +50,43 @@ async def send_error_to_dev_telegram(error_report):
             print(f"Ошибка отправки лога в Telegram: {e}")
 
 
+async def log_test(e: Exception, endpoint: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    error_report = (
+        f"❌ **VoidLink Error**\n"
+        f"**Endpoint:** {endpoint}\n"
+        f"**Error details:** `{str(e)}`"
+        f"**Timestamp:** `{timestamp}`"
+    )
+    await send_error_to_dev_telegram(error_report)
+
+
 # AUTH ЕНДПОІНТИ
-@app.post("/register", response_model=schemas.UserInfo, tags=["Users"], summary="Register a new user", dependencies=[Depends(RateLimiter(times=3, seconds=600))])
+@app.post("/register", response_model=schemas.UserInfo, tags=["Users"], summary="Register a new user",
+          dependencies=[Depends(RateLimiter(times=3, seconds=600))])
 async def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     try:
+
+        if not user.username or not user.password:
+            raise HTTPException(status_code=400, detail="Password or username is required.")
+
+
         db_user = crud.get_user_by_username(db, username=user.username)
         if db_user:
-            raise HTTPException(status_code=400, detail="Registration failed")
-        try:
-            return crud.create_user(db=db, user=user)
-        except IntegrityError:
-            db.rollback()
             raise HTTPException(status_code=400, detail="User already exists")
-        except Exception as e:
-            db.rollback()
-            print(f"Критическая ошибка: {e}")
-            raise HTTPException(status_code=500, detail="Internal Server Error")
+
+        return crud.create_user(db=db, user=user)
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/register`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        db.rollback()
+        await log_test(e, endpoint="/register")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -90,15 +101,12 @@ async def login(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestF
 
         access_token = auth.create_access_token(data={"sub": user.username})
         return {"access_token": access_token, "token_type": "bearer"}
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/token - логін`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        await log_test(e, endpoint="/token(login)")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -116,23 +124,17 @@ async def change_password(
 
         if auth.verify_password(data.new_password, current_user.hashed_password):
             raise HTTPException(status_code=400, detail="New password cannot be the same as the old one")
-        try:
-            current_user.hashed_password = auth.get_password_hash(data.new_password)
-            db.commit()
-            return {"message": "Password updated successfully"}
-        except Exception as e:
-            db.rollback()
-            print(f"Критическая ошибка: {e}")
-            raise HTTPException(status_code=500, detail="Internal Server Error")
+
+        current_user.hashed_password = auth.get_password_hash(data.new_password)
+        db.commit()
+        return {"message": "Password updated successfully"}
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/user/change-password`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        db.rollback()
+        await log_test(e, endpoint="/user/change-password")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -154,23 +156,17 @@ async def change_username(
 
         if data.old_username != current_user.username:
             raise HTTPException(status_code=400, detail="Invalid username")
-        try:
-            current_user.username = data.new_username
-            db.commit()
-            return {"status": "success", "new_username": current_user.username}
-        except Exception as e:
-            db.rollback()
-            print(f"Критическая ошибка: {e}")
-            raise HTTPException(status_code=500, detail="Internal Server Error")
+
+        current_user.username = data.new_username
+        db.commit()
+        return {"status": "success", "new_username": current_user.username}
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/user/change-username`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        db.rollback()
+        await log_test(e, endpoint="/user/change-username")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -198,25 +194,19 @@ async def create_url(
             user = db.query(models.User).filter(models.User.telegram_id == int(x_telegram_id)).first()
 
         if not user and token:
-            try:
-                user = auth.get_current_user(db, token)
-            except Exception:
-                raise HTTPException(status_code=500, detail="DB Error")
+            user = auth.get_current_user(db, token)
 
         if not user:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
         safe_url = validate_url(url.target_url)
         return crud.create_db_url(db=db, url_address=safe_url, user_id=user.id)
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/shorten`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        await log_test(e, endpoint="/create_url")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -239,21 +229,14 @@ async def list_my_urls(
                 return user.urls
 
         if token:
-            try:
-                user = auth.get_current_user(db, token)
-                return user.urls
-            except Exception:
-                raise HTTPException(status_code=500, detail="DB Error")
-        raise HTTPException(status_code=401, detail="Unauthorized")
+            user = auth.get_current_user(db, token)
+            return user.urls
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/my-urls`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        await log_test(e, endpoint="/my-urls")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -266,16 +249,12 @@ async def redirect(short_key: str, db: Session = Depends(get_db)):
         if db_url:
             crud.update_db_clicks(db, db_url)
             return RedirectResponse(db_url.full_url)
-        raise HTTPException(status_code=404, detail="Link not found")
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `/short_key`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        await log_test(e, endpoint="/{short_key}")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -288,19 +267,14 @@ async def delete_url(
     current_user: models.User = Depends(auth.get_current_user)
 ):
     try:
-        success = crud.delete_db_url(db, short_key, current_user.id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Link not found or not yours")
+        crud.delete_db_url(db, short_key, current_user.id)
         return {"message": "Deleted successfully"}
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `delete /my-urls/short_key`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        await log_test(e, endpoint="delete /my-urls/{short_key}")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -312,19 +286,13 @@ async def get_url_info(short_key: str, db: Session = Depends(get_db), current_us
             models.URL.short_key == short_key,
             models.URL.owner_id == current_user.id
         ).first()
-
-        if db_url is None:
-            raise HTTPException(status_code=404, detail="URL not found")
         return db_url
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_report = (
-            f"❌ **VoidLink Error**\n"
-            f"**Endpoint:** `get /my-urls/short_key`\n"
-            f"**Error details:** `{str(e)}`"
-            f"**Timestamp:** `{timestamp}`"
-        )
-        await send_error_to_dev_telegram(error_report)
+        await log_test(e, endpoint="get /my-urls/{short_key}")
         raise HTTPException(
             status_code=500,
             detail="Something went wrong on our side. The developer has been notified."
@@ -332,9 +300,19 @@ async def get_url_info(short_key: str, db: Session = Depends(get_db), current_us
 
 @app.post("/check_url", summary="Check URL", tags=["Url"])
 async def check_url(payload: schemas.CheckURL):
+    if payload.target_url in ["http://", "https://", "http:", "https:", "https:/", "http:/"]:
+        raise HTTPException(status_code=400, detail="Invalid URL.")
+
     if not payload.target_url or payload.target_url is None:
         raise HTTPException(status_code=400, detail="URL is required")
-    url_id = get_url_id(payload.target_url)
+
+    try:
+        target_url_str = str(payload.target_url)
+        safe_url = validate_url(target_url_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid URL: {payload.target_url}")
+
+    url_id = get_url_id(safe_url)
     headers = {
         "x-apikey": os.getenv("VT_KEY"),
     }
@@ -347,34 +325,20 @@ async def check_url(payload: schemas.CheckURL):
                     f"https://www.virustotal.com/api/v3/urls/{url_id}",
                     headers=headers
                 )
-                if response.status_code == 401:
-                    raise HTTPException(status_code=response.status_code, detail="Unauthorized")
-                elif response.status_code == 404:
-                    raise HTTPException(status_code=404, detail="URL not found")
-                elif response.status_code == 400:
-                    raise HTTPException(status_code=400, detail="Bad Request")
-                elif response.status_code == 429:
-                    raise HTTPException(status_code=429, detail="Too Many Requests")
-                elif response.status_code == 500:
-                    raise HTTPException(status_code=500, detail="Server Error... Oopss....")
-                else:
-                    result = response.json()
-                    stats = result['data']['attributes']['last_analysis_stats']
-                    return {
-                        "url": payload.target_url,
-                        "malicious_votes": stats['malicious'],
-                        "suspicious_votes": stats['suspicious'],
-                        "is_safe": stats['malicious'] == 0
-                    }
+                result = response.json()
+                stats = result['data']['attributes']['last_analysis_stats']
+                return {
+                    "url": payload.target_url,
+                    "malicious_votes": stats['malicious'],
+                    "suspicious_votes": stats['suspicious'],
+                    "is_safe": stats['malicious'] == 0
+                }
+
+        except HTTPException as http_exc:
+            raise http_exc
+
         except Exception as e:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            error_report = (
-                f"❌ **VoidLink Error**\n"
-                f"**Endpoint:** `/check_url`\n"
-                f"**Error details:** `{str(e)}`"
-                f"**Timestamp:** `{timestamp}`"
-            )
-            await send_error_to_dev_telegram(error_report)
+            await log_test(e, endpoint="/check_url")
             raise HTTPException(
                 status_code=500,
                 detail="Something went wrong on our side. The developer has been notified."

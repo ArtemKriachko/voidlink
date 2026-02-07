@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from urllib.parse import urlparse
 import base64
 
+
 def validate_url(target_url: str):
     parsed = urlparse(target_url)
     if parsed.scheme not in ["http", "https"]:
