@@ -20,6 +20,9 @@ class UserInfo(BaseModel):
 class URLCreate(BaseModel):
     target_url: str
 
+class CheckURL(URLCreate):
+    pass
+
 class URLInfo(BaseModel):
     id: int
     full_url: str
